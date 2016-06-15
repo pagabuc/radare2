@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2007-2015 pancake */
+/* radare - LGPL - Copyright 2007-2016 pancake */
 
 #include "r_hash.h"
 #include "r_util.h"
@@ -25,6 +25,9 @@ static const hash_name_bytes[] = {
 	 {"hamdist", R_HASH_HAMDIST},
 	 {"pcprint", R_HASH_PCPRINT},
 	 {"mod255", R_HASH_MOD255},
+	 {"base64",R_HASH_BASE64},
+	 {"base91",R_HASH_BASE91},
+	 {"punycode",R_HASH_PUNYCODE},
 	 {NULL, 0}
 };
 
@@ -185,8 +188,9 @@ R_API char *r_hash_to_string(RHash *ctx, const char *name, const ut8 *data, int 
 			digest_hex = NULL;
 		} else {
 			digest_hex = malloc ((digest_size * 2) + 1);
-			for (i = 0; i < digest_size; i++)
+			for (i = 0; i < digest_size; i++) {
 				sprintf (digest_hex + (i * 2), "%02x", ctx->digest[i]);
+			}
 			digest_hex[digest_size * 2] = 0;
 		}
 	}

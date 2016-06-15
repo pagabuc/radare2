@@ -1,10 +1,12 @@
-/* radare - LGPL - Copyright 2009-2015 - pancake */
+/* radare - LGPL - Copyright 2009-2016 - pancake */
 
 #include <r_debug.h>
 #include <r_asm.h>
 #include <r_reg.h>
 #include <r_lib.h>
 #include <r_anal.h>
+#include <signal.h>
+#include <sys/uio.h>
 #include "linux_debug.h"
 
 const char *linux_reg_profile (RDebug *dbg) {
@@ -24,6 +26,8 @@ const char *linux_reg_profile (RDebug *dbg) {
 	} else {
 #include "reg/linux-x64.h"
 	}
+#elif __ppc__ || __powerpc || __powerpc__ || __POWERPC__
+#include "reg/linux-ppc.h"
 #else
 #error "Unsupported Linux CPU"
 #endif
@@ -148,10 +152,14 @@ RList *linux_thread_list (int pid, RList *list) {
 #define MAXPID 99999
 		for (i = pid; i < MAXPID; i++) { // XXX
 			snprintf (cmdline, sizeof(cmdline), "/proc/%d/status", i);
-			if (fd != -1)
+			if (fd != -1) {
 				close (fd);
+				fd = -1;
+			}
 			fd = open (cmdline, O_RDONLY);
-			if (fd == -1) continue;
+			if (fd == -1) {
+				continue;
+			}
 			if (read (fd, cmdline, 1024)<2) {
 				// read error
 				close (fd);
@@ -163,6 +171,7 @@ RList *linux_thread_list (int pid, RList *list) {
 				int tgid = atoi (ptr + 5);
 				if (tgid != pid) {
 					close (fd);
+					fd = -1;
 					continue;
 				}
 				if (read (fd, cmdline, sizeof(cmdline) - 1) <2) {
@@ -302,7 +311,10 @@ int linux_reg_read (RDebug *dbg, int type, ut8 *buf, int size) {
 	}
 	switch (type) {
 	case R_REG_TYPE_DRX:
-#if __i386__ || __x86_64__
+#if __POWERPC__
+		// no drx for powerpc
+		return false;
+#elif __i386__ || __x86_64__
 #if !__ANDROID__
 	{
 		int i;
@@ -323,7 +335,9 @@ int linux_reg_read (RDebug *dbg, int type, ut8 *buf, int size) {
 	case R_REG_TYPE_FPU:
 	case R_REG_TYPE_MMX:
 	case R_REG_TYPE_XMM:
-#if __x86_64__ || __i386__
+#if __POWERPC__
+		return false;
+#elif __x86_64__ || __i386__
 		{
 		int ret1 = 0;
 		struct user_fpregs_struct fpregs;
@@ -365,7 +379,7 @@ int linux_reg_read (RDebug *dbg, int type, ut8 *buf, int size) {
 			ret1 = ptrace (PTRACE_GETFPREGS, pid, NULL, &fpregs);
 			if (showfpu) print_fpu ((void *)&fpregs, 1);
 			if (ret1 != 0) return false;
-			if (sizeof(fpregs) < size) size = sizeof(fpregs);
+			if (sizeof (fpregs) < size) size = sizeof(fpregs);
 			memcpy (buf, &fpregs, size);
 			return sizeof(fpregs);
 #endif // !__ANDROID__
@@ -416,8 +430,11 @@ int linux_reg_read (RDebug *dbg, int type, ut8 *buf, int size) {
 
 int linux_reg_write (RDebug *dbg, int type, const ut8 *buf, int size) {
 	if (type == R_REG_TYPE_DRX) {
+#if __POWERPC__
+		// no drx for powerpc
+		return false;
 // XXX: this android check is only for arm
-#if !__ANDROID__
+#elif !__ANDROID__
 		int i;
 		long *val = (long*)buf;
 		for (i = 0; i < 8; i++) { // DR0-DR7
@@ -428,7 +445,7 @@ int linux_reg_write (RDebug *dbg, int type, const ut8 *buf, int size) {
 				perror ("ptrace");
 			}
 		}
-		return sizeof(R_DEBUG_REG_T);
+		return sizeof (R_DEBUG_REG_T);
 #else
 		return false;
 #endif
@@ -441,7 +458,7 @@ int linux_reg_write (RDebug *dbg, int type, const ut8 *buf, int size) {
 		};
 		int ret = ptrace (PTRACE_SETREGSET, dbg->pid, NT_PRSTATUS, &io);
 #elif __POWERPC__
-		int ret = ptrace (PTRACE_SETREGS, dbg->pid, &regs, NULL);
+		int ret = ptrace (PTRACE_SETREGS, dbg->pid, buf, NULL);
 #else 
 		int ret = ptrace (PTRACE_SETREGS, dbg->pid, 0, (void*)buf);
 #endif
@@ -507,3 +524,4 @@ RList *linux_desc_list (int pid) {
 	closedir (dd);
 	return ret;
 }
+

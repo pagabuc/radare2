@@ -103,8 +103,9 @@ static void do_hash_print(RHash *ctx, int hash, int dlen, int rad, int ule) {
 
 static int do_hash_internal(RHash *ctx, int hash, const ut8 *buf, int len, int rad, int print, int le) {
 	int dlen;
-	if (len < 0)
+	if (len < 0) {
 		return 0;
+	}
 	dlen = r_hash_calculate (ctx, hash, buf, len);
 	if (!dlen) return 0;
 	if (!print) return 1;
@@ -152,7 +153,7 @@ static int do_hash(const char *file, const char *algo, RIO *io, int bsize, int r
 		eprintf ("rahash2: Unknown file size\n");
 		return 1;
 	}
-	buf = malloc (bsize + 1);
+	buf = calloc (1, bsize + 1);
 	if (!buf)
 		return 1;
 	ctx = r_hash_new (R_TRUE, algobit);
@@ -202,8 +203,9 @@ static int do_hash(const char *file, const char *algo, RIO *io, int bsize, int r
 				}
 			}
 		}
-		if (_s)
+		if (_s) {
 			free (_s->buf);
+		}
 	} else {
 		/* iterate over all algorithm bits */
 		if (s.buf)
@@ -268,11 +270,20 @@ static int do_help(int line) {
 static void algolist() {
 	ut64 bits;
 	int i;
+	eprintf ("Available Hashes: \n");
 	for (i = 0; ; i++) {
 		bits = ((ut64)1) << i;
 		const char *name = r_hash_name (bits);
 		if (!name || !*name) break;
-		printf ("%s\n", name);
+		printf ("  %s\n", name);
+	}
+	eprintf ("\n");
+	eprintf ("Available Crypto Algos: \n");
+	for (i = 0; ; i++) {
+		bits = ((ut64)1) << i;
+		const char *name = r_crypto_name (bits);
+		if (!name || !*name) break;
+		printf ("  %s\n", name);
 	}
 }
 
@@ -285,13 +296,13 @@ static void algolist() {
 	hashstr = x;\
 }
 
-int is_power_of_two(const ut64 x) {
+static bool is_power_of_two(const ut64 x) {
 	return x && !(x & (x - 1));
 }
 
 //direction: 0 => encrypt, 1 => decrypt
-int encrypt_or_decrypt(const char *algo, int direction, const char *hashstr, int hashstr_len, const ut8 *iv, int ivlen, int mode) {
-	bool no_key_mode = !strcmp ("base64", algo) || !strcmp ("base91", algo); //TODO: generalise this for all non key encoding/decoding.
+static int encrypt_or_decrypt(const char *algo, int direction, const char *hashstr, int hashstr_len, const ut8 *iv, int ivlen, int mode) {
+	bool no_key_mode = !strcmp ("base64", algo) || !strcmp ("base91", algo) || !strcmp ("punycode", algo); //TODO: generalise this for all non key encoding/decoding.
 	if (no_key_mode || s.len > 0) {
 		RCrypto *cry = r_crypto_new ();
 		if (r_crypto_use (cry, algo)) {
@@ -327,8 +338,8 @@ int encrypt_or_decrypt(const char *algo, int direction, const char *hashstr, int
 	return 1;
 }
 
-int encrypt_or_decrypt_file (const char *algo, int direction, char *filename, const ut8 *iv, int ivlen, int mode) {
-	bool no_key_mode = !strcmp ("base64", algo) || !strcmp ("base91", algo); //TODO: generalise this for all non key encoding/decoding.
+static int encrypt_or_decrypt_file (const char *algo, int direction, char *filename, const ut8 *iv, int ivlen, int mode) {
+	bool no_key_mode = !strcmp ("base64", algo) || !strcmp ("base91", algo) || !strcmp ("punycode", algo); //TODO: generalise this for all non key encoding/decoding.
 	if (no_key_mode || s.len > 0) {
 		RCrypto *cry = r_crypto_new ();
 		if (r_crypto_use (cry, algo)) {
@@ -342,6 +353,7 @@ int encrypt_or_decrypt_file (const char *algo, int direction, char *filename, co
 
 				if (iv && !r_crypto_set_iv (cry, iv, ivlen)) {
 					eprintf ("Invalid IV.\n");
+					free (buf);
 					return 0;
 				}
 
@@ -533,7 +545,7 @@ int main(int argc, char **argv) {
 		hashstr = hashstr + from;
 		hashstr_len = to - from;
 		hashstr[hashstr_len] = '\0';
-		if (!bytes_read) {
+		if (!bytes_read && !hashstr_hex) {
 			hashstr_len = r_str_unescape (hashstr);
 		}
 		if (encrypt) {

@@ -10,6 +10,7 @@
 
 #define IS_MODE_SET(mode) (mode & R_CORE_BIN_SET)
 #define IS_MODE_SIMPLE(mode) (mode & R_CORE_BIN_SIMPLE)
+#define IS_MODE_SIMPLEST(mode) (mode & R_CORE_BIN_SIMPLEST)
 #define IS_MODE_JSON(mode) (mode & R_CORE_BIN_JSON)
 #define IS_MODE_RAD(mode) (mode & R_CORE_BIN_RADARE)
 #define IS_MODE_NORMAL(mode) (!mode)
@@ -313,8 +314,9 @@ static int bin_strings(RCore *r, int mode, int va) {
 	r_list_foreach (list, iter, string) {
 		const char *section_name, *type_string;
 		ut64 paddr, vaddr, addr;
-		if (!string_filter (r, string->string))
+		if (!string_filter (r, string->string)) {
 			continue;
+		}
 		paddr = string->paddr;
 		vaddr = r_bin_get_vaddr (bin, paddr, string->vaddr);
 		addr = va ? vaddr : paddr;
@@ -343,6 +345,8 @@ static int bin_strings(RCore *r, int mode, int va) {
 		} else if (IS_MODE_SIMPLE (mode)) {
 			r_cons_printf ("0x%"PFMT64x" %d %d %s\n", addr,
 				string->size, string->length, string->string);
+		} else if (IS_MODE_SIMPLEST (mode)) {
+			r_cons_printf ("%s\n", string->string);
 		} else if (IS_MODE_JSON (mode)) {
 			q = r_base64_encode_dyn (string->string, -1);
 			r_cons_printf ("%s{\"vaddr\":%"PFMT64d
@@ -1212,6 +1216,7 @@ static bool isAnExport(RBinSymbol *s) {
 
 static int bin_symbols_internal(RCore *r, int mode, ut64 laddr, int va, ut64 at, const char *name, bool exponly) {
 	RBinInfo *info = r_bin_get_info (r->bin);
+	if (!info) return 0;
 	int is_arm = info && info->arch && !strncmp (info->arch, "arm", 3);
 	int bin_demangle = r_config_get_i (r->config, "bin.demangle");
 	RBinSymbol *symbol;
@@ -1250,11 +1255,15 @@ static int bin_symbols_internal(RCore *r, int mode, ut64 laddr, int va, ut64 at,
 		if (IS_MODE_SET (mode)) {
 			if (is_arm) {
 				int force_bits = 0;
-				if (va && symbol->bits == 16)
+				if (va && symbol->bits == 16) {
 					force_bits = 16;
-				if (info->bits == 16 && symbol->bits == 32)
+				}
+				if (info->bits == 16 && symbol->bits == 32) {
 					force_bits = 32;
-				r_anal_hint_set_bits (r->anal, addr, force_bits);
+				}
+				if (force_bits) {
+					r_anal_hint_set_bits (r->anal, addr, force_bits);
+				}
 			}
 
 			if (!strncmp (symbol->name, "imp.", 4)) {
@@ -2104,6 +2113,18 @@ static int bin_versioninfo(RCore *r, int mode) {
 	return true;
 }
 
+static int bin_signature(RCore *r, int mode) {
+    	RBinFile *cur = r_bin_cur (r->bin);
+	RBinPlugin *plg = r_bin_file_cur_plugin (cur);
+	if (!plg) return false;
+	if (plg->signature) {
+	    	const char *signature = plg->signature (cur);
+		r_cons_printf ("%s\n", signature);
+		return true;
+	}
+	return false;
+}
+
 R_API int r_core_bin_info(RCore *core, int action, int mode, int va, RCoreBinFilter *filter, const char *chksum) {
 	int ret = true;
 	const char *name = NULL;
@@ -2149,6 +2170,8 @@ R_API int r_core_bin_info(RCore *core, int action, int mode, int va, RCoreBinFil
 		ret &= bin_mem (core, mode);
 	if ((action & R_CORE_BIN_ACC_VERSIONINFO))
 		ret &= bin_versioninfo (core, mode);
+	if ((action & R_CORE_BIN_ACC_SIGNATURE))
+		ret &= bin_signature (core, mode);
 	return ret;
 }
 

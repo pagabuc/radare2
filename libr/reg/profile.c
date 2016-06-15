@@ -45,6 +45,7 @@ static const char *parse_def(RReg *reg, char **tok, const int n) {
 		return "Invalid register type";
 
 	item = R_NEW0 (RRegItem);
+	if (!item) return "Unable to allocate memory";
 
 	item->type = type;
 	item->name = strdup (tok[1]);
@@ -181,6 +182,7 @@ R_API int r_reg_set_profile_string(RReg *reg, const char *str) {
 
 	// dup the last arena to allow regdiffing
 	r_reg_arena_push (reg);
+	r_reg_reindex (reg);
 	// reset arenas
 	return true;
 }

@@ -20,6 +20,14 @@ static Sdb* get_sdb (RBinObject *o) {
 	return NULL;
 }
 
+static char *entitlements(RBinFile *arch) {
+	struct MACH0_(obj_t) *bin;
+	if (!arch || !arch->o)
+	    	return NULL;
+	bin = arch->o->bin_obj;
+	return (char *)bin->signature;
+}
+
 static void * load_bytes(RBinFile *arch, const ut8 *buf, ut64 sz, ut64 loadaddr, Sdb *sdb){
 	struct MACH0_(obj_t) *res = NULL;
 	RBuffer *tbuf = NULL;
@@ -337,15 +345,13 @@ static RBinInfo* info(RBinFile *arch) {
 	ret->arch = MACH0_(get_cputype) (arch->o->bin_obj);
 	ret->machine = MACH0_(get_cpusubtype) (arch->o->bin_obj);
 	ret->type = MACH0_(get_filetype) (arch->o->bin_obj);
+	ret->big_endian = MACH0_(is_big_endian) (arch->o->bin_obj);
 	ret->bits = 32;
-	ret->big_endian = 0;
 	if (arch && arch->o && arch->o->bin_obj) {
 		ret->has_crypto = ((struct MACH0_(obj_t)*)
 			arch->o->bin_obj)->has_crypto;
 		ret->bits = MACH0_(get_bits) (arch->o->bin_obj);
-		ret->big_endian = MACH0_(is_big_endian) (arch->o->bin_obj);
 	}
-
 	ret->has_va = true;
 	ret->has_pi = MACH0_(is_pie) (arch->o->bin_obj);
 	return ret;
@@ -356,7 +362,6 @@ static int check(RBinFile *arch) {
 	const ut8 *bytes = arch ? r_buf_buffer (arch->buf) : NULL;
 	ut64 sz = arch ? r_buf_size (arch->buf): 0;
 	return check_bytes (bytes, sz);
-
 }
 
 static int check_bytes(const ut8 *buf, ut64 length) {
@@ -574,6 +579,7 @@ static int size(RBinFile *arch) {
 	return off+len;
 }
 
+
 RBinPlugin r_bin_plugin_mach0 = {
 	.name = "mach0",
 	.desc = "mach0 bin plugin",
@@ -587,6 +593,7 @@ RBinPlugin r_bin_plugin_mach0 = {
 	.baddr = &baddr,
 	.binsym = &binsym,
 	.entries = &entries,
+	.signature = &entitlements,
 	.sections = &sections,
 	.symbols = &symbols,
 	.imports = &imports,

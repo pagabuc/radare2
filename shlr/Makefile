@@ -20,9 +20,9 @@ CS_PATCHES=0
 else
 CS_TAR=
 CS_URL=$(GIT_PREFIX)github.com/aquynh/capstone.git
-CS_UPD=20160522
+CS_UPD=20160612
 CS_BRA=next
-CS_TIP=a4bdbc81575ff5d9e571237be09b30823cdde122
+CS_TIP=4e62a6f27536171e725902e254102c59d741a2b2
 # REVERT THIS COMMIT BECAUSE ITS WRONG
 CS_REV=
 CS_PATCHES=1
@@ -169,7 +169,7 @@ tcc-clean tccclean:
 
 CFILES=i386-asm.c i386-gen.c libtcc.c tccasm.c tccelf.c tccgen.c tccpp.c
 HFILES=tcc.h i386-asm.h tcclib.h tcctok.h stab.h
-HFILES+=elf.h libtcc.h config.h i386-tok.h
+HFILES+=elf.h config.h i386-tok.h
 
 # TODO: use mob branch?
 

@@ -101,7 +101,8 @@ R_API int r_socket_unix_listen (RSocket *s, const char *file) {
 #endif
 
 R_API RSocket *r_socket_new (int is_ssl) {
-	RSocket *s = R_NEW (RSocket);
+	RSocket *s = R_NEW0 (RSocket);
+	if (!s) return NULL;
 	s->is_ssl = is_ssl;
 	s->port = 0;
 #if __UNIX_
@@ -259,7 +260,6 @@ R_API int r_socket_close_fd (RSocket *s) {
 /* shutdown the socket and close the file descriptor */
 R_API int r_socket_close (RSocket *s) {
 	int ret = false;
-	char buf;
 	if (!s) return false;
 	if (s->fd != -1) {
 #if __UNIX__ || defined(__CYGWIN__)
@@ -269,7 +269,8 @@ R_API int r_socket_close (RSocket *s) {
 		// https://msdn.microsoft.com/en-us/library/windows/desktop/ms740481(v=vs.85).aspx
 		shutdown (s->fd, SD_SEND);
 		do {
-			ret = recv (s->fd, &buf, 1, 0); 
+			char buf = 0;
+			ret = recv (s->fd, &buf, 1, 0);
 		} while (ret != 0 && ret != SOCKET_ERROR);
 		ret = closesocket (s->fd);
 #else
@@ -622,6 +623,7 @@ R_API int r_socket_gets(RSocket *s, char *buf,	int size) {
 
 R_API RSocket *r_socket_new_from_fd (int fd) {
 	RSocket *s = R_NEW0 (RSocket);
+	if (!s) return NULL;
 	s->fd = fd;
 	return s;
 }
